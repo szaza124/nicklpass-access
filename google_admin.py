@@ -70,3 +70,54 @@ def fetch_workspace_graph(creds):
         user_to_apps[email] = filtered
 
     return user_to_apps, app_to_users
+
+    def fetch_interactive_logins(creds, user_email, lookback_days=90):
+    """
+    Returns a dict:
+    { client_id: last_interactive_login_datetime }
+    Based ONLY on true OAuth interactions, not passive refresh.
+    """
+    from googleapiclient.discovery import build
+    from datetime import datetime, timedelta, timezone
+
+    service = build("admin", "reports_v1", credentials=creds)
+
+    now = datetime.now(timezone.utc)
+    start_date = (now - timedelta(days=lookback_days)).isoformat()
+
+    results = {}
+
+    try:
+        activities = (
+            service.activities()
+            .list(
+                userKey=user_email,
+                applicationName="login",
+                startTime=start_date,
+                maxResults=200
+            )
+            .execute()
+        )
+
+        for item in activities.get("items", []):
+            time = item["id"]["time"]
+
+            for event in item.get("events", []):
+                # The GOOD events
+                if event["name"] in [
+                    "oauth_authorization",
+                    "login_success",
+                    "id_token",
+                ]:
+                    client_id = None
+                    for p in event.get("parameters", []):
+                        if p["name"] == "client_id":
+                            client_id = p["value"]
+
+                    if client_id:
+                        results[client_id] = time
+
+    except Exception as e:
+        print("Reports API error:", e)
+
+    return results

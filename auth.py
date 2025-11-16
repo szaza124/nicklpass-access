@@ -15,6 +15,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/admin.directory.user.readonly",
     "https://www.googleapis.com/auth/admin.directory.user.security"
+    "https://www.googleapis.com/auth/admin.reports.audit.readonly"
 ]
 
 def get_flow():

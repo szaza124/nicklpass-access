@@ -74,17 +74,23 @@ def view_user(email: str, request: Request):
         build_credentials,
         fetch_workspace_graph,
         days_since,
-        activity_status
+        activity_status,
+        fetch_interactive_logins,   # NEW
+        is_google_app
     )
-
     from googleapiclient.discovery import build
+    from datetime import datetime, timezone
 
     creds = build_credentials(token)
 
-    # Get org-wide graphs
+    # -------------------------
+    # Fetch org-wide graph
+    # -------------------------
     user_to_apps, app_to_users = fetch_workspace_graph(creds)
 
-    # Fetch last login time
+    # -------------------------
+    # Fetch last user login (Google login)
+    # -------------------------
     service = build("admin", "directory_v1", credentials=creds)
     record = service.users().get(userKey=email).execute()
 
@@ -92,19 +98,70 @@ def view_user(email: str, request: Request):
     days = days_since(last_login)
     status = activity_status(days)
 
+    # -------------------------
     # Apps for this user
+    # -------------------------
     apps = user_to_apps.get(email, [])
 
-    html = f"<h1>{email}</h1>"
-    html += f"<p><strong>User activity:</strong> {status} — last login {days} days ago</p><ul>"
+    # -------------------------
+    # TRUE INTERACTIVE USAGE
+    # Fetch *actual* login events (Reports API)
+    # -------------------------
+    interactive = fetch_interactive_logins(creds, email)
 
-    for app_token in apps:
-        name = app_token.get("displayText", "Unknown App")
-        client_id = app_token.get("clientId")
-        html += f"<li>{status} — <a href='/apps/{client_id}'>{name}</a></li>"
+    # -------------------------
+    # HTML + CSS header
+    # -------------------------
+    html = "<link rel='stylesheet' href='/static/style.css'>"
+    html += """
+    <div class="nav">
+        <a href="/users">Users</a>
+        <a href="/apps">Apps</a>
+        <a href="/">Home</a>
+    </div>
+    """
 
-    html += "</ul>"
-    html += "<br><a href='/users'>← Back to Users</a>"
+    html += f"<div class='card'><h1>{email}</h1>"
+    html += f"<p><strong>Google account activity:</strong> {status} — {days} days ago</p>"
+
+    html += "<h2>Connected Apps</h2>"
+    html += "<table><tr><th>App</th><th>Status</th><th>Last Used</th></tr>"
+
+    # -------------------------
+    # Loop through apps
+    # -------------------------
+    for t in apps:
+        name = t.get("displayText", "Unknown App")
+        client_id = t.get("clientId")
+
+        # Skip Google-native apps
+        if is_google_app(name):
+            continue
+
+        # Interactive login check
+        last_interactive = interactive.get(client_id)
+
+        if last_interactive:
+            dt = datetime.fromisoformat(last_interactive.replace("Z", "+00:00"))
+            days_int = (datetime.now(timezone.utc) - dt).days
+
+            if days_int <= 30:
+                badge = "<span class='badge green'>Active</span>"
+            elif days_int <= 90:
+                badge = "<span class='badge yellow'>Maybe</span>"
+            else:
+                badge = "<span class='badge red'>Inactive</span>"
+
+            last_used_str = f"{days_int} days ago"
+
+        else:
+            badge = "<span class='badge red'>Inactive</span>"
+            last_used_str = "No recent login"
+
+        html += f"<tr><td><a href='/apps/{client_id}'>{name}</a></td><td>{badge}</td><td>{last_used_str}</td></tr>"
+
+    html += "</table></div>"
+    html += "<a href='/users'>← Back to Users</a>"
 
     return HTMLResponse(html)
 

@@ -1,0 +1,155 @@
+/* -------------------------
+   BASIC LAYOUT
+--------------------------*/
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    max-width: 900px;
+    margin: 40px auto;
+    padding: 0 20px;
+    line-height: 1.6;
+    color: #333;
+    background: #fafafa;
+}
+
+/* -------------------------
+   HEADINGS
+--------------------------*/
+
+h1 {
+    font-size: 28px;
+    margin-bottom: 10px;
+    color: #111;
+}
+
+h2 {
+    font-size: 20px;
+    margin-top: 30px;
+    margin-bottom: 10px;
+    color: #222;
+}
+
+/* -------------------------
+   CARDS
+--------------------------*/
+
+.card {
+    background: #fff;
+    border: 1px solid #eee;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 25px;
+    box-shadow: rgba(0, 0, 0, 0.03) 0px 2px 4px;
+}
+
+/* -------------------------
+   NAVIGATION
+--------------------------*/
+
+.nav {
+    margin-bottom: 25px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.nav a {
+    margin-right: 15px;
+    font-size: 14px;
+    color: #007aff;
+    text-decoration: none;
+}
+
+.nav a:hover {
+    text-decoration: underline;
+}
+
+/* -------------------------
+   LISTS
+--------------------------*/
+
+ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+li {
+    padding: 6px 0;
+}
+
+/* -------------------------
+   BADGES (Activity Labels)
+--------------------------*/
+
+.badge {
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: white;
+    display: inline-block;
+    margin-right: 8px;
+}
+
+.badge.green {
+    background: #2ecc71;
+}
+
+.badge.yellow {
+    background: #f1c40f;
+    color: #444;
+}
+
+.badge.red {
+    background: #e74c3c;
+}
+
+/* -------------------------
+   TABLE STYLES (For App/User lists)
+--------------------------*/
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+th, td {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+}
+
+th {
+    background: #f5f5f5;
+    font-weight: 600;
+}
+
+/* -------------------------
+   LINKS
+--------------------------*/
+
+a {
+    color: #007aff;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* -------------------------
+   BUTTONS
+--------------------------*/
+
+button {
+    background: #007aff;
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+button:hover {
+    background: #005fcc;
+}
