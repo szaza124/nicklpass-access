@@ -14,7 +14,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/admin.directory.user.readonly",
-    "https://www.googleapis.com/auth/admin.directory.user.security"
+    "https://www.googleapis.com/auth/admin.directory.user.security",
     "https://www.googleapis.com/auth/admin.reports.audit.readonly"
 ]
 
@@ -44,7 +44,6 @@ def oauth_callback(request: Request):
 
     creds = flow.credentials
 
-    # Save token
     request.session["google_token"] = {
         "token": creds.token,
         "refresh_token": creds.refresh_token,
@@ -54,11 +53,9 @@ def oauth_callback(request: Request):
         "scopes": creds.scopes,
     }
 
-    # Fetch authenticated user email
     oauth_service = build("oauth2", "v2", credentials=creds)
     user_email = oauth_service.userinfo().get().execute().get("email")
 
-    # Check if user is Workspace Admin
     try:
         admin_service = build("admin", "directory_v1", credentials=creds)
         record = admin_service.users().get(userKey=user_email).execute()
