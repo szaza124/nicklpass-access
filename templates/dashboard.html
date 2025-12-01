@@ -1,0 +1,16 @@
+return HTMLResponse(f"""
+<link rel="stylesheet" href="/static/style.css">
+
+<div class="nav">
+   <a href="/users">Users</a>
+   <a href="/apps">Apps</a>
+   <a href="/">Home</a>
+</div>
+
+<div class="card">
+    <h1>Users</h1>
+    <ul>
+        {rows}
+    </ul>
+</div>
+""")

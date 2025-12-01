@@ -144,30 +144,13 @@ def fetch_interactive_logins(creds, user_email, lookback_days=180):
 # BLENDED USAGE SCORING
 # (Green = True login, Yellow = Token refresh, Red = Inactive)
 # ------------------------------------------------------
-def blended_activity_status(app_token, last_interactive):
-    now = datetime.now(timezone.utc)
-
-    # GREEN — confirmed interactive login
-    if last_interactive:
-        dt = datetime.fromisoformat(last_interactive.replace("Z", "+00:00"))
-        days_int = (now - dt).days
-        if days_int <= 30:
-            return ("🟢", "Active", f"{days_int} days ago (interactive login)")
-
-    # YELLOW — token refresh or app-level activity
-    issue_str = (
-        app_token.get("issueTime")
-        or app_token.get("validBeforeTime")
-    )
-
-    if issue_str:
-        try:
-            dt = datetime.fromisoformat(issue_str.replace("Z", "+00:00"))
-            days_bg = (now - dt).days
-            if days_bg <= 90:
-                return ("🟡", "Maybe Active", f"{days_bg} days ago (token refresh)")
-        except:
-            pass
-
-    # RED — no interactive login, no token activity
-    return ("🔴", "Inactive", "No recent activity")
+def blended_activity_status(app_token, last_interactive=None):
+    """
+    Simplified MVP logic:
+    Green = app_token exists (connected)
+    Red   = no app_token (not connected)
+    """
+    if app_token:
+        return ("🟢", "Connected", "")
+    else:
+        return ("🔴", "Not Connected", "")
