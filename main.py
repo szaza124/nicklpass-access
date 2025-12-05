@@ -3,14 +3,16 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from auth import router as auth_router
+from plaid_routes import router as plaid_router
 
 
 # -------------------------
-# FastAPI App + Static
+# FastAPI App + Static + Plaid
 # -------------------------
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="supersecretkey")
 app.include_router(auth_router)
+app.include_router(plaid_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
@@ -176,6 +178,39 @@ def list_apps(request: Request):
     creds = build_credentials(token)
     user_to_apps, app_to_users = fetch_workspace_graph(creds)
 
+    # ---- NEW: Get Plaid spend data if connected ----
+    plaid_token = request.session.get("plaid_access_token")
+    app_spend = {}
+    
+    if plaid_token:
+        from datetime import datetime, timedelta
+        from plaid_routes import client, classify_transaction
+        from plaid.model.transactions_get_request import TransactionsGetRequest
+        from plaid.model.transactions_get_request_options import TransactionsGetRequestOptions
+        
+        try:
+            end_date = datetime.now().date()
+            start_date = end_date - timedelta(days=90)
+            
+            txn_request = TransactionsGetRequest(
+                access_token=plaid_token,
+                start_date=start_date,
+                end_date=end_date,
+                options=TransactionsGetRequestOptions(count=250)
+            )
+            response = client.transactions_get(txn_request)
+            transactions = response.to_dict().get("transactions", [])
+            
+            # Group spend by merchant (lowercase for matching)
+            for t in transactions:
+                merchant = (t.get("merchant_name") or t.get("name", "")).lower()
+                amount = t.get("amount", 0)
+                if amount > 0:  # Only charges, not refunds
+                    app_spend[merchant] = app_spend.get(merchant, 0) + amount
+        except Exception as e:
+            print(f"Plaid error: {e}")
+    # ---- END NEW ----
+
     sorted_apps = sorted(
         app_to_users.items(),
         key=lambda x: len(x[1]["users"]),
@@ -183,13 +218,32 @@ def list_apps(request: Request):
     )
 
     html = "<link rel='stylesheet' href='/static/style.css'>"
-    html += "<div class='nav'><a href='/users'>Users</a><a href='/apps'>Apps</a><a href='/'>Home</a></div>"
+    html += "<div class='nav'><a href='/users'>Users</a><a href='/apps'>Apps</a><a href='/spend'>Spend</a><a href='/'>Home</a></div>"
     html += "<div class='card'><h1>Apps (Ranked by Connections)</h1>"
 
-    html += "<table><tr><th>App</th><th># Users Connected</th></tr>"
+    # ---- UPDATED: Add Spend column ----
+    html += "<table><tr><th>App</th><th># Users</th><th>Spend (90d)</th></tr>"
+    
     for client_id, data in sorted_apps:
-        html += f"<tr><td><a href='/apps/{client_id}'>{data['displayText']}</a></td><td>{len(data['users'])}</td></tr>"
+        app_name = data['displayText']
+        user_count = len(data['users'])
+        
+        # Try to match app name to spend data
+        spend = 0
+        app_lower = app_name.lower()
+        for merchant, amount in app_spend.items():
+            if app_lower in merchant or merchant in app_lower:
+                spend += amount
+        
+        spend_display = f"${spend:,.2f}" if spend > 0 else "—"
+        
+        html += f"<tr><td><a href='/apps/{client_id}'>{app_name}</a></td><td>{user_count}</td><td>{spend_display}</td></tr>"
+    
     html += "</table></div>"
+    
+    # Show prompt to connect bank if not connected
+    if not plaid_token:
+        html += "<div class='card'><p>💡 <a href='/spend'>Connect your bank</a> to see spend data.</p></div>"
 
     return HTMLResponse(html)
 
