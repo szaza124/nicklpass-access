@@ -13,6 +13,8 @@ SCOPES = [
     "openid",
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/userinfo.profile",
+    # REQUIRED for personal connected apps:
+    "https://www.googleapis.com/auth/user.data.readonly",
     "https://www.googleapis.com/auth/admin.directory.user.readonly",
     "https://www.googleapis.com/auth/admin.directory.user.security",
     "https://www.googleapis.com/auth/admin.reports.audit.readonly"
@@ -65,7 +67,12 @@ def oauth_callback(request: Request):
 
     oauth_service = build("oauth2", "v2", credentials=creds)
     user_email = oauth_service.userinfo().get().execute().get("email")
-
+    
+    # Personal Gmail users → always connected apps path
+    if user_email.endswith("@gmail.com"):
+        return RedirectResponse("/connected-apps")
+    
+    # Try admin directory lookup
     try:
         admin_service = build("admin", "directory_v1", credentials=creds)
         record = admin_service.users().get(userKey=user_email).execute()
@@ -76,4 +83,4 @@ def oauth_callback(request: Request):
     if is_admin:
         return RedirectResponse("/users")
     else:
-        return RedirectResponse("/not_admin")
+        return RedirectResponse("/connected-apps")
