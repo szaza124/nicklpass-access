@@ -13,8 +13,6 @@ SCOPES = [
     "openid",
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/userinfo.profile",
-    # REQUIRED for personal connected apps:
-    "https://www.googleapis.com/auth/user.data.readonly",
     "https://www.googleapis.com/auth/admin.directory.user.readonly",
     "https://www.googleapis.com/auth/admin.directory.user.security",
     "https://www.googleapis.com/auth/admin.reports.audit.readonly"
