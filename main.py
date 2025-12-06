@@ -4,13 +4,12 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from auth import router as auth_router
 
-# Google APIs
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
 
 # -------------------------
-# FastAPI App + Static
+# FastAPI Setup
 # -------------------------
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="supersecretkey")
@@ -33,22 +32,7 @@ def home():
 
 
 # -------------------------
-# Not Admin
-# -------------------------
-@app.get("/not_admin")
-def not_admin():
-    return HTMLResponse("""
-        <link rel="stylesheet" href="/static/style.css">
-        <div class="card">
-            <h1>Admin Access Required</h1>
-            <p>This tool requires a Google Workspace Admin to view organizational data.</p>
-            <a href="/">← Back to Home</a>
-        </div>
-    """)
-
-
-# -------------------------
-# Users List
+# Users List (Admin Only)
 # -------------------------
 @app.get("/users")
 def list_users(request: Request):
@@ -71,7 +55,6 @@ def list_users(request: Request):
     html = "<link rel='stylesheet' href='/static/style.css'>"
     html += "<div class='nav'><a href='/users'>Users</a><a href='/apps'>Apps</a><a href='/'>Home</a></div>"
     html += "<div class='card'><h1>Users</h1>"
-
     html += "<table><tr><th>User</th><th>Google Activity</th><th># Connected Apps</th></tr>"
 
     for email, apps in user_to_apps.items():
@@ -93,7 +76,7 @@ def list_users(request: Request):
 
 
 # -------------------------
-# User Detail Page
+# Admin View of Single User
 # -------------------------
 @app.get("/users/{email}")
 def view_user(email: str, request: Request):
@@ -110,11 +93,8 @@ def view_user(email: str, request: Request):
     )
 
     creds = build_credentials(token)
-
-    # Fetch workspace data
     user_to_apps, app_to_users = fetch_workspace_graph(creds)
 
-    # Fetch Google login recency
     directory = build("admin", "directory_v1", credentials=creds)
     record = directory.users().get(userKey=email).execute()
     last_login = record.get("lastLoginTime")
@@ -123,19 +103,10 @@ def view_user(email: str, request: Request):
 
     apps = user_to_apps.get(email, [])
 
-    # ----------------------
-    # PAGE HTML
-    # ----------------------
     html = "<link rel='stylesheet' href='/static/style.css'>"
     html += "<div class='nav'><a href='/users'>Users</a><a href='/apps'>Apps</a><a href='/'>Home</a></div>"
     html += f"<div class='card'><h1>{email}</h1>"
-
-    html += f"""
-    <p style='font-size: 1.2rem;'>
-        <strong>Google Login Activity:</strong> {google_status}<br>
-        Last login: {days} days ago
-    </p>
-    """
+    html += f"<p><strong>Google Login Activity:</strong> {google_status}<br>Last login: {days} days ago</p>"
 
     html += "<h2>Connected Apps</h2>"
     html += "<table><tr><th>App</th><th>Status</th></tr>"
@@ -150,12 +121,11 @@ def view_user(email: str, request: Request):
         html += f"<tr><td><a href='/apps/{client}'>{name}</a></td><td>🟢 Connected</td></tr>"
 
     html += "</table></div>"
-    html += "<a href='/users'>← Back to Users</a>"
     return HTMLResponse(html)
 
 
 # -------------------------
-# Apps List
+# Apps List (Admin Only)
 # -------------------------
 @app.get("/apps")
 def list_apps(request: Request):
@@ -187,7 +157,7 @@ def list_apps(request: Request):
 
 
 # -------------------------
-# App Detail Page
+# View App Detail (Admin Only)
 # -------------------------
 @app.get("/apps/{client_id}")
 def view_app(client_id: str, request: Request):
@@ -214,7 +184,7 @@ def view_app(client_id: str, request: Request):
 
     directory = build("admin", "directory_v1", credentials=creds)
 
-    html = "<link rel='stylesheet' href='/static/style.css'>"
+    html = """<link rel='stylesheet' href='/static/style.css'>"""
     html += "<div class='nav'><a href='/users'>Users</a><a href='/apps'>Apps</a><a href='/'>Home</a></div>"
     html += f"<div class='card'><h1>{app_name}</h1><h2>Users</h2>"
     html += "<table><tr><th>User</th><th>Google Activity</th><th>Status</th></tr>"
@@ -230,48 +200,18 @@ def view_app(client_id: str, request: Request):
             <td><a href='/users/{email}'>{email}</a></td>
             <td>{google_status} ({days} days ago)</td>
             <td>🟢 Connected</td>
-        </tr>
-        """
+        </tr>"""
 
     html += "</table></div>"
-    html += "<a href='/apps'>← Back to Apps</a>"
     return HTMLResponse(html)
 
 
 # -------------------------
-# Debug Endpoints
+# MY APPS — NON-ADMIN WORKSPACE USERS
 # -------------------------
-@app.get("/debug/audit/{email}")
-def debug_audit(email: str, request: Request):
-    from google_admin import build_credentials, fetch_interactive_logins
-    token = request.session["google_token"]
-    creds = build_credentials(token)
-    return fetch_interactive_logins(creds, email)
-
-
-@app.get("/debug/tokens/{email}")
-def debug_tokens(email: str, request: Request):
-    token = request.session.get("google_token")
-    if not token:
-        return {"error": "Not logged in"}
-
-    from google_admin import build_credentials
-    creds = build_credentials(token)
-    service = build("admin", "directory_v1", credentials=creds)
-
-    try:
-        return service.tokens().list(userKey=email).execute()
-    except Exception as e:
-        return {"error": str(e)}
-
-
-# -------------------------
-# Connected Apps (Personal User View)
-# -------------------------
-@app.get("/connected-apps")
-def connected_apps(request: Request):
+@app.get("/my-apps")
+def my_apps(request: Request):
     token_data = request.session.get("google_token")
-
     if not token_data:
         return RedirectResponse("/")
 
@@ -284,38 +224,32 @@ def connected_apps(request: Request):
         scopes=token_data["scopes"],
     )
 
-    service = build("people", "v1", credentials=creds)
-    response = service.people().get(
-        resourceName="people/me",
-        personFields="metadata"
-    ).execute()
+    # Fetch authenticated user's email
+    oauth = build("oauth2", "v2", credentials=creds)
+    user_email = oauth.userinfo().get().execute().get("email")
 
-    sources = response.get("metadata", {}).get("sources", []) or []
+    # Fetch ONLY apps connected to this user
+    directory = build("admin", "directory_v1", credentials=creds)
 
-    apps = [
-        s for s in sources
-        if s.get("type") == "APPLICATION"
-    ]
+    try:
+        tokens = directory.tokens().list(userKey=user_email).execute()
+        items = tokens.get("items", [])
+    except Exception as e:
+        return HTMLResponse(f"<h1>Unable to fetch connected apps</h1><p>{e}</p>")
 
     html = "<link rel='stylesheet' href='/static/style.css'>"
     html += "<div class='nav'><a href='/'>Home</a></div>"
-    html += "<div class='card'><h1>Your Connected Apps</h1>"
-    html += "<table><tr><th>App Name</th><th>Client ID</th><th>Last Updated</th></tr>"
+    html += f"<div class='card'><h1>Your Connected Apps</h1>"
+    html += "<table><tr><th>App</th><th>Client ID</th><th>Scopes</th></tr>"
 
-    for a in apps:
-        name = a.get("profileName", "Unknown App")
-        client_id = a.get("clientId", "N/A")
-        update = a.get("updateTime", "N/A")
-
+    for app in items:
         html += f"""
         <tr>
-            <td>{name}</td>
-            <td>{client_id}</td>
-            <td>{update}</td>
+            <td>{app.get('displayText')}</td>
+            <td>{app.get('clientId')}</td>
+            <td>{', '.join(app.get('scopes', []))}</td>
         </tr>
         """
 
     html += "</table></div>"
-    html += "<a href='/'>← Back to Home</a>"
-
     return HTMLResponse(html)
